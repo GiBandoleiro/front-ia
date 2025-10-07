@@ -11,6 +11,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;</script>
+
+
     <!-- Custom Tailwind Config -->
     <script>
     tailwind.config = {
@@ -119,10 +124,7 @@
             "zustand": "https://esm.sh/zustand@4.5.2",
             "zustand/middleware": "https://esm.sh/zustand@4.5.2/middleware",
             "lucide-react": "https://esm.sh/lucide-react@0.395.0",
-            "sonner": "https://esm.sh/sonner@1.5.0",
-            "react-beautiful-dnd": "https://esm.sh/react-beautiful-dnd@13.1.1",
-            "pdfjs-dist/build/pdf": "https://esm.sh/pdfjs-dist@3.4.120/build/pdf.js",
-            "pdfjs-dist/build/pdf.worker.entry": "https://esm.sh/pdfjs-dist@3.4.120/build/pdf.worker.entry.js"
+            "sonner": "https://esm.sh/sonner@1.5.0"
         }
     }
     </script>
@@ -138,7 +140,7 @@
             FileText, UploadCloud, Link, X, CornerDownLeft, Image as ImageIcon, Mic, Send, BotMessageSquare,
             BrainCircuit, Workflow, Copy, Check, CheckCircle, FileUp, MoreVertical, Edit, Copy as CopyIcon,
             ArrowRight, Circle, Package, MessageCircle as MessageCircleIcon, Code, Power, PowerOff, Sparkles,
-            ListTodo, Star, UserPlus, Tags, SlidersHorizontal, LogIn, LogOut, Download, Sliders, Eye, FileJson, TestTube2, AlertTriangle, Book, FileQuestion, Terminal, ChevronsRight, Loader
+            ListTodo, Star, UserPlus, Tags, SlidersHorizontal, LogIn, LogOut, Download, Sliders, Eye, FileJson, TestTube2, AlertTriangle, Book, FileQuestion, Terminal, ChevronsRight, Loader, Menu, Save
         } from 'lucide-react';
         import { Toaster, toast } from 'sonner';
 
@@ -148,6 +150,7 @@
             name: "Novo Agente",
             type: 'sub_agent',
             prompt: "",
+            specialty: "",
         };
 
         const initialMultiAgentState = (id) => ({
@@ -155,17 +158,18 @@
             name: "Multi-Agente Padrão",
             type: 'multi_agent',
             prompt: "Você é um multi-agente avançado. Sua função é analisar a conversa do usuário e direcioná-la para o sub-agente mais apropriado.",
+            specialty: "Orquestrador de agentes",
             subAgents: [],
             knowledgeBase: [],
             tools: [
-                { id: 'tool_web_search', name: 'Busca na Web', enabled: false, assignedAgents: [], config: { provider: 'Google', maxResults: 3, safeSearch: true } },
-                { id: 'tool_calculator', name: 'Calculadora', enabled: false, assignedAgents: [], config: { precision: 2, useComplex: false } },
-                { id: 'tool_email', name: 'Envio de Email', enabled: false, assignedAgents: [], config: { sender: 'bot@example.com', subject: 'Assunto Automático' } },
-                { id: 'tool_scheduling', name: 'Agendamento', enabled: false, assignedAgents: [], config: { duration: 30, confirmationMsg: 'Sua reunião está agendada.'} },
-                { id: 'tool_api', name: 'Integração API', enabled: false, assignedAgents: [], config: { method: 'GET', url: 'https://api.example.com/data', timeout: 5000 } },
+                { id: 'tool_web_search', name: 'Busca na Web', description: "Permite ao chatbot buscar informações na internet.", enabled: false, assignedAgents: [], config: { description: '', provider: 'Google', maxResults: 3, safeSearch: true } },
+                { id: 'tool_calculator', name: 'Calculadora', description: "Realiza cálculos matemáticos e conversões.", enabled: false, assignedAgents: [], config: { description: '', precision: 2, useComplex: false } },
+                { id: 'tool_email', name: 'Envio de Email', description: "Envia emails automáticos baseados na conversa.", enabled: false, assignedAgents: [], config: { description: '', sender: 'bot@example.com', subject: 'Assunto Automático' } },
+                { id: 'tool_scheduling', name: 'Agendamento', description: "Agenda compromissos e consulta disponibilidade.", enabled: false, assignedAgents: [], config: { description: '', duration: 30, confirmationMsg: 'Sua reunião está agendada.'} },
+                { id: 'tool_api', name: 'Integração API', description: "Conecta com APIs externas para dados em tempo real.", enabled: false, assignedAgents: [], config: { description: '', method: 'GET', url: 'https://api.example.com/data', timeout: 5000 } },
             ],
             outputs: [],
-            keywords: { ignore: false, list: ['vendas', 'suporte', 'preço', 'ajuda'] },
+            keywords: { ignore: false, list: ['vendas', 'suporte', 'preço', 'ajuda'], actions: {} },
             channels: ['WhatsApp', 'WebChat'],
         });
 
@@ -177,7 +181,9 @@
                     activeTab: 'config',
                     theme: 'dark',
                     previewState: {},
-                    
+                    isSidebarOpen: false,
+
+                    toggleSidebar: () => set(state => ({ isSidebarOpen: !state.isSidebarOpen })),
                     setActiveTab: (tab) => set({ activeTab: tab }),
                     
                     getOrCreatePreviewState: (agentId) => {
@@ -229,7 +235,12 @@
                         return { theme: newTheme };
                     }),
 
-                    setActiveAgentId: (id) => set({ activeAgentId: id }),
+                    setActiveAgentId: (id) => set(state => {
+                        if (window.innerWidth < 1024) { // lg breakpoint
+                           return { activeAgentId: id, isSidebarOpen: false };
+                        }
+                        return { activeAgentId: id };
+                    }),
                     addMultiAgent: () => set(state => {
                         const newId = `multi_${Date.now()}`;
                         return { 
@@ -324,7 +335,7 @@
                 power: Power, powerOff: PowerOff, sparkles: Sparkles, checklist: ListTodo, star: Star, userPlus: UserPlus,
                 tags: Tags, sliders: SlidersHorizontal, login: LogIn, logout: LogOut, download: Download, config: Sliders, 
                 eye: Eye, fileJson: FileJson, testTube: TestTube2, alert: AlertTriangle, book: Book, faq: FileQuestion,
-                terminal: Terminal, chevronsRight: ChevronsRight, loader: Loader
+                terminal: Terminal, chevronsRight: ChevronsRight, loader: Loader, menu: Menu, save: Save
             }[name];
             return LucideIcon ? React.createElement(LucideIcon, props) : null;
         };
@@ -339,7 +350,7 @@
                     document.documentElement.classList.remove('dark');
                  }
             }, []);
-            return React.createElement('div', { className: 'flex h-screen w-screen bg-base-light dark:bg-base font-sans' },
+            return React.createElement('div', { className: 'flex h-screen w-screen bg-base-light dark:bg-base font-sans overflow-hidden' },
                 React.createElement(Toaster, { richColors: true, theme: theme, position: "bottom-right" }),
                 React.createElement(Sidebar),
                 React.createElement('div', { className: 'flex flex-1 flex-col' },
@@ -365,16 +376,19 @@
                 ? activeAgent 
                 : useAppStore.getState().multiAgents.find(ma => ma.subAgents.some(sa => sa.id === activeAgentId));
 
-            return React.createElement('main', { className: 'flex flex-1 overflow-hidden p-4 gap-4' },
-                React.createElement('div', {className: 'w-[300px] flex-shrink-0 flex flex-col gap-4'},
+            return React.createElement('main', { className: 'flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden p-2 sm:p-4 gap-4' },
+                React.createElement('div', {className: 'w-full lg:w-[300px] lg:flex-shrink-0 flex flex-col gap-4'},
                     React.createElement(AgentPanel),
-                    React.createElement(ChecklistPanel, { agent: activeAgent, multiAgent: activeMultiAgent }),
+                    React.createElement('div', {className: 'hidden lg:block'}, React.createElement(ChecklistPanel, { agent: activeAgent, multiAgent: activeMultiAgent }))
                 ),
-                React.createElement('div', { className: 'flex-1 flex flex-col bg-card-light dark:bg-card rounded-2xl' },
+                React.createElement('div', { className: 'flex-1 flex flex-col bg-card-light dark:bg-card rounded-2xl min-h-0' },
                     React.createElement(TabSwitcher, { activeTab, setActiveTab }),
                     React.createElement('div', { className: 'flex-1 overflow-y-auto' },
                        activeTab === 'config' 
-                           ? React.createElement('div', {className:'p-6'}, React.createElement(ConfigPanel, { key: activeAgentId, agent: activeAgent, multiAgent: activeMultiAgent }))
+                           ? React.createElement('div', {className:'p-4 sm:p-6'}, 
+                                React.createElement(ConfigPanel, { key: activeAgentId, agent: activeAgent, multiAgent: activeMultiAgent }),
+                                React.createElement('div', {className:'block lg:hidden mt-4'}, React.createElement(ChecklistPanel, { agent: activeAgent, multiAgent: activeMultiAgent }))
+                            )
                            : React.createElement(PreviewPanel, { multiAgent: activeMultiAgent })
                     ),
                     activeTab === 'config' && React.createElement(Footer)
@@ -391,43 +405,49 @@
                 tabs.map(tab => React.createElement('button', {
                     key: tab.id, onClick: () => setActiveTab(tab.id),
                     className: `flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${activeTab === tab.id ? 'bg-primary/10 dark:bg-primary/20 text-primary' : 'text-secondary-text-light dark:text-secondary-text hover:bg-base-light dark:hover:bg-base'}`
-                }, React.createElement(Icon, { name: tab.icon, className: 'h-4 w-4' }), tab.label))
+                }, React.createElement(Icon, { name: tab.icon, className: 'h-4 w-4' }), React.createElement('span', {className:'hidden sm:inline'}, tab.label)))
             );
         };
 
         const Sidebar = () => {
+            const { isSidebarOpen, toggleSidebar } = useAppStore();
             const items = [
                 { icon: 'message', label: 'Caixa de Entrada' }, { icon: 'botMessage', label: 'Conversas' },
                 { icon: 'users', label: 'Contatos' }, { icon: 'chart', label: 'Relatórios' },
                 { icon: 'megaphone', label: 'Campanhas' }, { icon: 'help', label: 'Central de Ajuda' },
                 { icon: 'settings', label: 'Configurações' }
             ];
-            return React.createElement('aside', { className: 'w-64 flex-shrink-0 bg-card-light dark:bg-card border-r border-border-light dark:border-border flex flex-col' },
-                React.createElement('div', { className: 'h-16 flex items-center px-6 border-b border-border-light dark:border-border' },
-                    React.createElement(Icon, { name: 'bot', className: 'h-8 w-8 text-primary' }),
-                    React.createElement('h1', { className: 'ml-3 text-xl font-bold text-primary-text-light dark:text-primary-text' }, "Builder Pro")
+            return React.createElement(React.Fragment, null,
+                React.createElement('aside', { className: `fixed lg:relative inset-y-0 left-0 z-30 w-64 flex-shrink-0 bg-card-light dark:bg-card border-r border-border-light dark:border-border flex-col transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:flex` },
+                    React.createElement('div', { className: 'h-16 flex items-center px-6 border-b border-border-light dark:border-border' },
+                        React.createElement(Icon, { name: 'bot', className: 'h-8 w-8 text-primary' }),
+                        React.createElement('h1', { className: 'ml-3 text-xl font-bold text-primary-text-light dark:text-primary-text' }, "Builder Pro")
+                    ),
+                    React.createElement('nav', { className: 'flex-1 p-4' },
+                        items.map(item => React.createElement('a', {
+                            key: item.label, href: '#', onClick: () => toast.info(`${item.label} - Não implementado.`),
+                            className: 'flex items-center px-4 py-2.5 text-secondary-text-light dark:text-secondary-text rounded-lg hover:bg-base-light dark:hover:bg-base hover:text-primary-text-light dark:hover:text-primary-text transition-colors'
+                        }, React.createElement(Icon, { name: item.icon, className: 'h-5 w-5 mr-4' }), item.label))
+                    )
                 ),
-                React.createElement('nav', { className: 'flex-1 p-4' },
-                    items.map(item => React.createElement('a', {
-                        key: item.label, href: '#', onClick: () => toast.info(`${item.label} - Não implementado.`),
-                        className: 'flex items-center px-4 py-2.5 text-secondary-text-light dark:text-secondary-text rounded-lg hover:bg-base-light dark:hover:bg-base hover:text-primary-text-light dark:hover:text-primary-text transition-colors'
-                    }, React.createElement(Icon, { name: item.icon, className: 'h-5 w-5 mr-4' }), item.label))
-                )
+                isSidebarOpen && React.createElement('div', { onClick: toggleSidebar, className: 'fixed inset-0 bg-black/50 z-20 lg:hidden' })
             );
         };
         
-        const Header = ({ toggleTheme, theme }) => (
-            React.createElement('header', { className: 'h-16 flex-shrink-0 bg-card-light dark:bg-card border-b border-border-light dark:border-border flex items-center justify-between px-6' },
-                React.createElement('div', { className: 'flex items-center gap-4' },
-                    React.createElement('h2', { className: 'text-2xl font-bold text-primary-text-light dark:text-primary-text' }, "ChatBot Builder"),
-                    React.createElement('span', { className: 'px-3 py-1 text-xs font-semibold text-green-800 dark:text-green-200 bg-green-500/10 dark:bg-green-500/20 rounded-full border border-green-500/20 dark:border-green-500/30' }, "IA Avançada")
+        const Header = ({ toggleTheme, theme }) => {
+            const { toggleSidebar } = useAppStore();
+            return React.createElement('header', { className: 'h-16 flex-shrink-0 bg-card-light dark:bg-card border-b border-border-light dark:border-border flex items-center justify-between px-6' },
+                React.createElement('div', { className: 'flex items-center gap-2 sm:gap-4' },
+                    React.createElement('button', { onClick: toggleSidebar, className: 'lg:hidden p-2 -ml-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-base-light dark:hover:bg-base' }, React.createElement(Icon, { name: 'menu', className: 'h-5 w-5' })),
+                    React.createElement('h2', { className: 'text-lg sm:text-2xl font-bold text-primary-text-light dark:text-primary-text' }, "ChatBot Builder"),
+                    React.createElement('span', { className: 'hidden sm:block px-3 py-1 text-xs font-semibold text-green-800 dark:text-green-200 bg-green-500/10 dark:bg-green-500/20 rounded-full border border-green-500/20 dark:border-green-500/30' }, "IA Avançada")
                 ),
-                React.createElement('div', { className: 'flex items-center gap-4' },
+                React.createElement('div', { className: 'flex items-center gap-2 sm:gap-4' },
                    React.createElement('button', { onClick: () => toast.info('Não implementado.'), className: 'p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-base-light dark:hover:bg-base' }, React.createElement(Icon, { name: 'help', className: 'h-5 w-5' })),
                    React.createElement('button', { onClick: toggleTheme, className: 'p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-base-light dark:hover:bg-base' }, React.createElement(Icon, { name: theme === 'dark' ? 'sun' : 'moon', className: 'h-5 w-5' }))
                 )
-            )
-        );
+            );
+        };
 
         const getChecklistStatus = (agent, multiAgent) => {
             if (!agent) return { items: [], isComplete: false };
@@ -552,16 +572,26 @@
 
         const ConfigPanel = ({ agent, multiAgent }) => {
             if (!agent) return React.createElement('div', { className: 'flex items-center justify-center h-full' }, React.createElement('p', { className: 'text-secondary-text-light dark:text-secondary-text' }, 'Selecione um agente para configurar.'));
+            const { updateAgentConfig } = useAppStore();
 
             return React.createElement('div', { className: 'w-full' },
                 React.createElement('h2', { className: 'text-2xl font-bold mb-1 text-primary-text-light dark:text-primary-text' }, agent.name),
-                React.createElement('p', { className: 'text-sm text-secondary-text-light dark:text-secondary-text mb-6' }, `ID: ${agent.id}`),
+                React.createElement('p', { className: 'text-sm text-secondary-text-light dark:text-secondary-text mb-2' }, `ID: ${agent.id}`),
+                 React.createElement('div', { className: 'mb-6' },
+                    React.createElement('label', { className: 'text-sm font-medium text-secondary-text-light dark:text-secondary-text' }, 'Especialidade'),
+                    React.createElement('input', {
+                        type: 'text',
+                        value: agent.specialty || '',
+                        onChange: e => updateAgentConfig(agent.id, 'specialty', e.target.value),
+                        placeholder: 'Ex: Especialista em imóveis de luxo',
+                        className: 'mt-1 w-full p-2 bg-input-bg-light dark:bg-input-bg border border-border-light dark:border-border rounded-lg text-sm'
+                    })
+                ),
                 React.createElement(PromptCard, { agent: agent }),
                 agent.type === 'multi_agent' && React.createElement(React.Fragment, null, 
                     React.createElement(KnowledgeBaseCard, { multiAgent: agent }),
                     React.createElement(ToolsCard, { multiAgent: agent }),
                     React.createElement(OutputsCard, { multiAgent: agent }),
-                    React.createElement(ConfigSection, { title: "Fluxo Geral", description: "Controles de roteamento, rate limit e fallback."}, React.createElement('p', {className: 'text-secondary-text-light dark:text-secondary-text text-sm'}, 'Não implementado.')),
                     React.createElement(KeywordsCard, { multiAgent: agent }),
                     React.createElement(ChannelsCard, { multiAgent: agent }),
                 )
@@ -612,6 +642,7 @@
                 { id: 'text', label: 'Texto', icon: 'file' },
                 { id: 'faq', label: 'FAQ', icon: 'faq' },
                 { id: 'url', label: 'URL', icon: 'link' },
+                { id: 'produtos', label: 'Produtos', icon: 'package' }
             ];
 
             const renderContent = () => {
@@ -633,10 +664,10 @@
             };
 
             return React.createElement(ConfigSection, { title: "Base de Conhecimento", description: "Alimente seu agente com informações, arquivos e FAQs."}, 
-                React.createElement('div', {className: 'flex items-center gap-2 border-b border-border-light dark:border-border'},
+                React.createElement('div', {className: 'flex items-center gap-2 border-b border-border-light dark:border-border overflow-x-auto'},
                     tabs.map(tab => React.createElement('button', {
                         key: tab.id, onClick: () => setActiveTab(tab.id),
-                        className: `flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-secondary-text-light dark:text-secondary-text hover:text-primary-text-light dark:hover:text-primary-text'}`
+                        className: `flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 shrink-0 ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-secondary-text-light dark:text-secondary-text hover:text-primary-text-light dark:hover:text-primary-text'}`
                     }, React.createElement(Icon, { name: tab.icon, className: 'h-4 w-4'}), tab.label))
                 ),
                 renderContent()
@@ -650,6 +681,11 @@
             const [faqA, setFaqA] = React.useState('');
             const [url, setUrl] = React.useState('');
             const [isCrawling, setIsCrawling] = React.useState(false);
+            const [productTitle, setProductTitle] = React.useState('');
+            const [productDesc, setProductDesc] = React.useState('');
+            const fileInputRef = React.useRef(null);
+            const productFileRef = React.useRef(null);
+
 
             const handleAddText = () => {
                 if(textTitle.trim() && textContent.trim()) {
@@ -661,6 +697,66 @@
                 if(faqQ.trim() && faqA.trim()) {
                     onAdd('faq', { question: faqQ, answer: faqA });
                     setFaqQ(''); setFaqA('');
+                }
+            };
+            
+            const readFileContent = (file) => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    if (file.type.startsWith('text/')) {
+                        reader.onload = (event) => resolve(event.target.result);
+                        reader.onerror = (err) => reject(err);
+                        reader.readAsText(file);
+                    } else if (file.type === 'application/pdf') {
+                        reader.onload = async (event) => {
+                            try {
+                                const pdf = await pdfjsLib.getDocument(event.target.result).promise;
+                                let fullText = '';
+                                for (let i = 1; i <= pdf.numPages; i++) {
+                                    const page = await pdf.getPage(i);
+                                    const textContent = await page.getTextContent();
+                                    fullText += textContent.items.map(item => item.str).join(' ');
+                                }
+                                resolve(fullText);
+                            } catch (pdfError) {
+                                reject(pdfError);
+                            }
+                        };
+                        reader.onerror = (err) => reject(err);
+                        reader.readAsArrayBuffer(file);
+                    } else if (file.type.startsWith('image/')) {
+                        reader.onload = (event) => resolve(event.target.result); // base64 string
+                        reader.onerror = (err) => reject(err);
+                        reader.readAsDataURL(file);
+                    } else {
+                        reject(new Error("Tipo de arquivo não suportado"));
+                    }
+                });
+            };
+
+            const handleAddProduct = async () => {
+                const file = productFileRef.current.files[0];
+                if (!productTitle.trim() || !file) {
+                    toast.error('Título e arquivo do produto são obrigatórios.');
+                    return;
+                }
+                
+                const fileToast = toast.loading(`Lendo arquivo do produto...`);
+                try {
+                    const content = await readFileContent(file);
+                    onAdd('produtos', { 
+                        title: productTitle, 
+                        description: productDesc, 
+                        fileName: file.name, 
+                        content: content,
+                        fileType: file.type
+                    });
+                    setProductTitle('');
+                    setProductDesc('');
+                    productFileRef.current.value = null;
+                    toast.success('Produto adicionado!', { id: fileToast });
+                } catch (error) {
+                    toast.error(`Erro: ${error.message}`, { id: fileToast });
                 }
             };
 
@@ -686,11 +782,34 @@
                     setIsCrawling(false);
                 }
             };
+            
+            const handleFileChange = async (e) => {
+                const file = e.target.files[0];
+                if(!file) return;
+
+                const fileToast = toast.loading(`Lendo ${file.name}...`);
+                try {
+                   const content = await readFileContent(file);
+                   onAdd('files', { name: file.name, content: content });
+                   toast.success(`${file.name} lido com sucesso!`, { id: fileToast });
+                } catch (error) {
+                    toast.error(`Erro ao processar o arquivo: ${error.message}`, { id: fileToast });
+                } finally {
+                    e.target.value = null; // Reset input
+                }
+            };
 
             const commonInputClass = 'w-full p-2 bg-input-bg-light dark:bg-input-bg border border-border-light dark:border-border rounded-md';
 
             switch(type) {
-                case 'files': return React.createElement('button', {className: 'w-full flex flex-col items-center justify-center p-4 border-2 border-dashed border-border-light dark:border-border rounded-lg hover:bg-input-bg-light dark:hover:bg-input-bg'}, React.createElement(Icon, {name:'upload', className: 'h-6 w-6 text-secondary-text-light dark:text-secondary-text mb-2'}), React.createElement('span', {className:'text-sm'}, 'Arraste ou clique para enviar'));
+                case 'files': return React.createElement('div', null, 
+                    React.createElement('input', { type: 'file', ref: fileInputRef, onChange: handleFileChange, className:'hidden', accept: '.txt,.pdf,.md' }),
+                    React.createElement('button', {onClick: () => fileInputRef.current.click(), className: 'w-full flex flex-col items-center justify-center p-4 border-2 border-dashed border-border-light dark:border-border rounded-lg hover:bg-input-bg-light dark:hover:bg-input-bg'}, 
+                        React.createElement(Icon, {name:'upload', className: 'h-6 w-6 text-secondary-text-light dark:text-secondary-text mb-2'}), 
+                        React.createElement('span', {className:'text-sm'}, 'Arraste ou clique para enviar'),
+                        React.createElement('span', {className:'text-xs text-secondary-text-light dark:text-secondary-text mt-1'}, 'TXT, PDF, MD')
+                    )
+                );
                 case 'text': return React.createElement('div', {className: 'space-y-2'},
                     React.createElement('input', { type: 'text', placeholder: 'Título', value: textTitle, onChange: e => setTextTitle(e.target.value), className: commonInputClass }),
                     React.createElement('textarea', { placeholder: 'Conteúdo...', value: textContent, onChange: e => setTextContent(e.target.value), className: `w-full h-24 ${commonInputClass}` }),
@@ -707,6 +826,12 @@
                        isCrawling && React.createElement(Icon, { name: 'loader', className: 'h-4 w-4 animate-spin' }),
                        isCrawling ? 'Rastreando...' : 'Rastrear'
                     )
+                );
+                case 'produtos': return React.createElement('div', {className: 'space-y-2'},
+                    React.createElement('input', { type: 'text', placeholder: 'Título do Produto', value: productTitle, onChange: e => setProductTitle(e.target.value), className: commonInputClass }),
+                    React.createElement('textarea', { placeholder: 'Descrição do Produto...', value: productDesc, onChange: e => setProductDesc(e.target.value), className: `w-full h-24 ${commonInputClass}` }),
+                    React.createElement('input', { type: 'file', ref: productFileRef, className: commonInputClass, accept: '.txt,.pdf,.md,.png,.jpg,.jpeg' }),
+                    React.createElement('button', { onClick: handleAddProduct, className: 'px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold' }, 'Adicionar Produto')
                 );
                 default: return null;
             }
@@ -726,6 +851,8 @@
                     case 'text': return item.title;
                     case 'faq': return item.question;
                     case 'url': return item.url;
+                    case 'files': return item.name;
+                    case 'produtos': return item.title;
                     default: return item.id;
                 }
             };
@@ -777,19 +904,22 @@
                 configuringTool && React.createElement(ToolConfigModal, { tool: configuringTool, onClose: () => setConfiguringTool(null), onSave: handleConfigSave }),
                 assigningTool && React.createElement(AssignToolModal, { tool: assigningTool, multiAgent, onClose: () => setAssigningTool(null), onSave: handleAssignAgents }),
                 React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
-                    multiAgent.tools.map(tool => React.createElement('div', { key: tool.id, className: 'bg-input-bg-light dark:bg-input-bg border border-border-light dark:border-border rounded-lg p-4 flex flex-col justify-between' },
-                        React.createElement('div', { className: 'flex items-center justify-between' },
-                            React.createElement('div', { className: 'flex items-center gap-3' },
-                                React.createElement(Icon, { name: toolIcons[tool.name], className: 'h-6 w-6 text-primary'}),
-                                React.createElement('h4', { className: 'font-semibold text-primary-text-light dark:text-primary-text' }, tool.name)
-                            ),
-                            React.createElement('button', { onClick: () => handleToggleTool(tool.id, !tool.enabled), className: `relative inline-flex h-6 w-11 items-center rounded-full ${tool.enabled ? 'bg-primary' : 'bg-border-light dark:bg-border'}`},
-                                React.createElement('span', { className: `inline-block h-4 w-4 transform rounded-full bg-white transition ${tool.enabled ? 'translate-x-6' : 'translate-x-1'}`})
+                    multiAgent.tools.map(tool => React.createElement('div', { key: tool.id, className: 'bg-card-light dark:bg-card border border-border-light dark:border-border p-4 rounded-xl flex flex-col gap-4 transition-all hover:shadow-lg hover:-translate-y-1' },
+                        React.createElement('div', { className: 'flex justify-between items-start' },
+                          React.createElement('div', { className: 'flex items-center gap-4' },
+                            React.createElement('div', { className: 'p-3 bg-primary/10 rounded-lg' }, React.createElement(Icon, { name: toolIcons[tool.name], className: 'h-6 w-6 text-primary' })),
+                            React.createElement('div', null,
+                              React.createElement('h4', { className: 'font-semibold text-primary-text-light dark:text-primary-text' }, tool.name),
+                              React.createElement('p', { className: 'text-xs text-secondary-text-light dark:text-secondary-text' }, tool.description)
                             )
+                          ),
+                          React.createElement('button', { onClick: () => handleToggleTool(tool.id, !tool.enabled), className: `relative inline-flex h-6 w-11 items-center rounded-full ${tool.enabled ? 'bg-primary' : 'bg-input-bg-light dark:bg-input-bg border border-border-light dark:border-border'}` },
+                            React.createElement('span', { className: `inline-block h-4 w-4 transform rounded-full bg-white transition ${tool.enabled ? 'translate-x-6' : 'translate-x-1'}` })
+                          )
                         ),
-                        React.createElement('div', { className: 'mt-4 flex items-center gap-2' },
-                            React.createElement('button', { onClick: () => setConfiguringTool(tool), className: 'flex-1 text-sm py-1.5 px-3 bg-base-light dark:bg-base border border-border-light dark:border-border rounded-md hover:bg-border-light/50 dark:hover:bg-border/50' }, 'Configurar'),
-                            React.createElement('button', { onClick: () => setAssigningTool(tool), className: 'flex-1 text-sm py-1.5 px-3 bg-base-light dark:bg-base border border-border-light dark:border-border rounded-md hover:bg-border-light/50 dark:hover:bg-border/50' }, 'Adicionar ao Agente')
+                        React.createElement('div', { className: 'flex items-center gap-2 mt-auto' },
+                          React.createElement('button', { onClick: () => setConfiguringTool(tool), className: 'flex-1 text-sm py-2 px-3 bg-base-light dark:bg-base border border-border-light dark:border-border rounded-md hover:bg-border-light/50 dark:hover:bg-border/50 font-semibold transition-colors' }, 'Configurar'),
+                          React.createElement('button', { onClick: () => setAssigningTool(tool), className: 'flex-1 text-sm py-2 px-3 bg-base-light dark:bg-base border border-border-light dark:border-border rounded-md hover:bg-border-light/50 dark:hover:bg-border/50 font-semibold transition-colors' }, 'Adicionar ao Agente')
                         )
                     ))
                 )
@@ -797,7 +927,7 @@
         };
         
         const Modal = ({ children, onClose, title }) => (
-             React.createElement('div', { className: 'fixed inset-0 bg-black/60 flex items-center justify-center z-50', onClick: onClose },
+             React.createElement('div', { className: 'fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4', onClick: onClose },
                 React.createElement('div', { className: 'bg-card-light dark:bg-card w-full max-w-lg rounded-2xl border border-border-light dark:border-border shadow-2xl fade-in', onClick: e => e.stopPropagation() },
                     React.createElement('div', {className: 'flex items-center justify-between p-4 border-b border-border-light dark:border-border'},
                         React.createElement('h3', { className: 'text-lg font-bold' }, title),
@@ -816,36 +946,48 @@
                 const commonInputClass = 'w-full p-2 bg-input-bg-light dark:bg-input-bg border border-border-light dark:border-border rounded-md';
                 const commonLabelClass = 'font-semibold block mb-1 text-sm';
                 
+                const descriptionField = React.createElement('div', { key: 'desc' }, 
+                    React.createElement('label', {className: commonLabelClass}, 'Descrição'), 
+                    React.createElement('textarea', {
+                        placeholder: 'Descreva o propósito desta configuração...',
+                        value: config.description || '', 
+                        onChange: e => updateConfig('description', e.target.value), 
+                        className: commonInputClass
+                    })
+                );
+
+                let specificFields;
                 switch(tool.id) {
-                    case 'tool_web_search': return React.createElement('div', {className: 'space-y-4'},
-                        React.createElement('div', null, React.createElement('label', {className: commonLabelClass}, 'Provedor'), React.createElement('select', {value: config.provider, onChange: e => updateConfig('provider', e.target.value), className: commonInputClass}, React.createElement('option', null, 'Google'), React.createElement('option', null, 'Bing'))),
-                        React.createElement('div', null, React.createElement('label', {className: commonLabelClass}, 'Máx. Resultados'), React.createElement('input', {type: 'number', value: config.maxResults, onChange: e => updateConfig('maxResults', parseInt(e.target.value)), className: commonInputClass})),
-                        React.createElement('label', {className:'flex items-center gap-2 cursor-pointer'}, React.createElement('input', {type: 'checkbox', checked: config.safeSearch, onChange: e => updateConfig('safeSearch', e.target.checked)}), 'SafeSearch')
-                    );
-                    case 'tool_calculator': return React.createElement('div', {className: 'space-y-4'},
-                        React.createElement('div', null, React.createElement('label', {className: commonLabelClass}, 'Precisão Decimal'), React.createElement('input', {type: 'number', min:0, max: 6, value: config.precision, onChange: e => updateConfig('precision', parseInt(e.target.value)), className: commonInputClass})),
-                        React.createElement('label', {className:'flex items-center gap-2 cursor-pointer'}, React.createElement('input', {type: 'checkbox', checked: config.useComplex, onChange: e => updateConfig('useComplex', e.target.checked)}), 'Permitir expressões complexas')
-                    );
-                    case 'tool_email': return React.createElement('div', {className: 'space-y-4'},
-                        React.createElement('div', null, React.createElement('label', {className: commonLabelClass}, 'Remetente'), React.createElement('input', {type: 'email', value: config.sender, onChange: e => updateConfig('sender', e.target.value), className: commonInputClass})),
-                        React.createElement('div', null, React.createElement('label', {className: commonLabelClass}, 'Assunto Padrão'), React.createElement('input', {type: 'text', value: config.subject, onChange: e => updateConfig('subject', e.target.value), className: commonInputClass}))
-                    );
-                    case 'tool_scheduling': return React.createElement('div', {className: 'space-y-4'},
-                         React.createElement('div', null, React.createElement('label', {className: commonLabelClass}, 'Duração (minutos)'), React.createElement('input', {type: 'number', value: config.duration, onChange: e => updateConfig('duration', parseInt(e.target.value)), className: commonInputClass})),
-                         React.createElement('div', null, React.createElement('label', {className: commonLabelClass}, 'Mensagem de Confirmação'), React.createElement('textarea', {value: config.confirmationMsg, onChange: e => updateConfig('confirmationMsg', e.target.value), className: commonInputClass}))
-                    );
-                    case 'tool_api': return React.createElement('div', {className: 'space-y-4'},
-                        React.createElement('div', null, React.createElement('label', {className: commonLabelClass}, 'Método'), React.createElement('select', {value: config.method, onChange: e => updateConfig('method', e.target.value), className: commonInputClass}, React.createElement('option', null, 'GET'), React.createElement('option', null, 'POST'), React.createElement('option', null, 'PUT'))),
-                        React.createElement('div', null, React.createElement('label', {className: commonLabelClass}, 'URL'), React.createElement('input', {type: 'url', value: config.url, onChange: e => updateConfig('url', e.target.value), className: commonInputClass})),
-                        React.createElement('div', null, React.createElement('label', {className: commonLabelClass}, 'Timeout (ms)'), React.createElement('input', {type: 'number', value: config.timeout, onChange: e => updateConfig('timeout', parseInt(e.target.value)), className: commonInputClass}))
-                    );
-                    default: return React.createElement('p', null, `Nenhuma configuração disponível.`);
+                    case 'tool_web_search': specificFields = [
+                        React.createElement('div', {key: 'provider'}, React.createElement('label', {className: commonLabelClass}, 'Provedor'), React.createElement('select', {value: config.provider, onChange: e => updateConfig('provider', e.target.value), className: commonInputClass}, React.createElement('option', null, 'Google'), React.createElement('option', null, 'Bing'))),
+                        React.createElement('div', {key: 'max'}, React.createElement('label', {className: commonLabelClass}, 'Máx. Resultados'), React.createElement('input', {type: 'number', value: config.maxResults, onChange: e => updateConfig('maxResults', parseInt(e.target.value)), className: commonInputClass})),
+                        React.createElement('label', {key: 'safe', className:'flex items-center gap-2 cursor-pointer'}, React.createElement('input', {type: 'checkbox', checked: config.safeSearch, onChange: e => updateConfig('safeSearch', e.target.checked)}), 'SafeSearch')
+                    ]; break;
+                    case 'tool_calculator': specificFields = [
+                        React.createElement('div', {key: 'prec'}, React.createElement('label', {className: commonLabelClass}, 'Precisão Decimal'), React.createElement('input', {type: 'number', min:0, max: 6, value: config.precision, onChange: e => updateConfig('precision', parseInt(e.target.value)), className: commonInputClass})),
+                        React.createElement('label', {key: 'complex', className:'flex items-center gap-2 cursor-pointer'}, React.createElement('input', {type: 'checkbox', checked: config.useComplex, onChange: e => updateConfig('useComplex', e.target.checked)}), 'Permitir expressões complexas')
+                    ]; break;
+                    case 'tool_email': specificFields = [
+                        React.createElement('div', {key: 'sender'}, React.createElement('label', {className: commonLabelClass}, 'Remetente'), React.createElement('input', {type: 'email', value: config.sender, onChange: e => updateConfig('sender', e.target.value), className: commonInputClass})),
+                        React.createElement('div', {key: 'subj'}, React.createElement('label', {className: commonLabelClass}, 'Assunto Padrão'), React.createElement('input', {type: 'text', value: config.subject, onChange: e => updateConfig('subject', e.target.value), className: commonInputClass}))
+                    ]; break;
+                    case 'tool_scheduling': specificFields = [
+                         React.createElement('div', {key: 'dur'}, React.createElement('label', {className: commonLabelClass}, 'Duração (minutos)'), React.createElement('input', {type: 'number', value: config.duration, onChange: e => updateConfig('duration', parseInt(e.target.value)), className: commonInputClass})),
+                         React.createElement('div', {key: 'msg'}, React.createElement('label', {className: commonLabelClass}, 'Mensagem de Confirmação'), React.createElement('textarea', {value: config.confirmationMsg, onChange: e => updateConfig('confirmationMsg', e.target.value), className: commonInputClass}))
+                    ]; break;
+                    case 'tool_api': specificFields = [
+                        React.createElement('div', {key: 'method'}, React.createElement('label', {className: commonLabelClass}, 'Método'), React.createElement('select', {value: config.method, onChange: e => updateConfig('method', e.target.value), className: commonInputClass}, React.createElement('option', null, 'GET'), React.createElement('option', null, 'POST'), React.createElement('option', null, 'PUT'))),
+                        React.createElement('div', {key: 'url'}, React.createElement('label', {className: commonLabelClass}, 'URL'), React.createElement('input', {type: 'url', value: config.url, onChange: e => updateConfig('url', e.target.value), className: commonInputClass})),
+                        React.createElement('div', {key: 'timeout'}, React.createElement('label', {className: commonLabelClass}, 'Timeout (ms)'), React.createElement('input', {type: 'number', value: config.timeout, onChange: e => updateConfig('timeout', parseInt(e.target.value)), className: commonInputClass}))
+                    ]; break;
+                    default: specificFields = [React.createElement('p', {key: 'none'}, `Nenhuma configuração disponível.`)];
                 }
+                return [...specificFields, descriptionField];
             };
             
             return React.createElement(Modal, { title: `Configurar: ${tool.name}`, onClose }, 
                 React.createElement('div', {},
-                    renderFields(),
+                    React.createElement('div', {className: 'space-y-4'}, renderFields()),
                     React.createElement('div', {className: 'flex justify-end gap-3 pt-4 mt-4 border-t border-border-light dark:border-border'},
                         React.createElement('button', { onClick: onClose, className: 'px-4 py-2 rounded-lg bg-base-light dark:bg-base hover:bg-border-light dark:hover:bg-border'}, 'Cancelar'),
                         React.createElement('button', { onClick: () => { onSave(tool.id, config); onClose(); }, className: 'px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white'}, 'Salvar')
@@ -904,19 +1046,19 @@
                 }),
                 React.createElement('div', { className: 'space-y-3' },
                     multiAgent.outputs.map(rule => React.createElement('div', { key: rule.id, className: 'bg-input-bg-light dark:bg-input-bg p-3 rounded-lg border border-border-light dark:border-border flex justify-between items-center' },
-                        React.createElement('div', {},
-                            React.createElement('p', { className: 'font-semibold' }, rule.name),
-                            React.createElement('p', { className: 'text-xs text-secondary-text-light dark:text-secondary-text' }, `Evento: ${rule.event} | ${rule.conditions.length} Cond. | ${rule.actions.length} Ações`)
+                        React.createElement('div', { className: 'flex-1 min-w-0' },
+                            React.createElement('p', { className: 'font-semibold truncate' }, rule.name),
+                            React.createElement('p', { className: 'text-xs text-secondary-text-light dark:text-secondary-text' }, `${rule.actions.length} Ações`)
                         ),
-                        React.createElement('div', {className: 'flex gap-2'},
+                        React.createElement('div', {className: 'flex gap-2 shrink-0'},
                            React.createElement('button', { onClick: () => setEditingRule(rule), className: 'p-1 hover:text-primary'}, React.createElement(Icon, {name: 'edit', className: 'h-4 w-4'})),
                            React.createElement('button', { onClick: () => handleDeleteRule(rule.id), className: 'p-1 hover:text-danger'}, React.createElement(Icon, {name: 'trash', className: 'h-4 w-4'}))
                         )
                     )),
                     React.createElement('button', {
-                        onClick: () => setEditingRule({ id: `out_${Date.now()}`, name: '', description: '', event: 'Mensagem Criada', conditions: [], actions: [] }),
+                        onClick: () => setEditingRule({ id: `out_${Date.now()}`, name: '', description: '', actions: [] }),
                         className: 'w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg border-2 border-dashed border-border-light dark:border-border hover:bg-input-bg-light dark:hover:bg-input-bg transition-colors'
-                    }, React.createElement(Icon, { name: 'plus' }), 'Adicionar Regra de Automação')
+                    }, React.createElement(Icon, { name: 'plus' }), 'Adicionar Regra de Saída')
                 )
             );
         };
@@ -926,26 +1068,18 @@
 
             const updateField = (key, value) => setLocalRule(prev => ({ ...prev, [key]: value }));
             
-            const addCondition = () => updateField('conditions', [...localRule.conditions, { id: `cond_${Date.now()}`, field: 'Status', operator: 'Igual a', value: ''}]);
-            const updateCondition = (index, key, value) => {
-                const newConditions = [...localRule.conditions];
-                newConditions[index][key] = value;
-                updateField('conditions', newConditions);
-            };
-            const removeCondition = (index) => updateField('conditions', localRule.conditions.filter((_, i) => i !== index));
-
             const addAction = () => updateField('actions', [...localRule.actions, { id: `act_${Date.now()}`, type: 'Adicionar Etiqueta', value: ''}]);
-            const updateAction = (index, key, value) => {
-                const newActions = [...localRule.actions];
-                newActions[index][key] = value;
+            
+            const removeAction = (index) => {
+                const newActions = localRule.actions.filter((_, i) => i !== index);
                 updateField('actions', newActions);
             };
-            const removeAction = (index) => updateField('actions', localRule.actions.filter((_, i) => i !== index));
             
-            const eventOptions = ["Conversa Criada", "Conversa Atualizada", "Conversa Resolvida", "Mensagem Criada", "Conversa Aberta"];
-            const conditionFieldOptions = ["Status", "Idioma", "Assunto", "Prioridade", "E-mail", "Caixa de Entrada", "Canal", "Agente"];
-            const conditionOpOptions = ["Igual a", "Diferente de", "Contém"];
-            const actionTypeOptions = ["Atribuir ao Agente", "Adicionar Etiqueta", "Enviar E-mail", "Silenciar", "Alterar Prioridade", "Notificar WhatsApp", "Adicionar Nota", "Finalizar Atendimento"];
+            const actionTypeOptions = [
+                "Adicionar Etiqueta", "Alterar Etapa do CRM", "Notificar Grupo de WhatsApp", 
+                "Adicionar Nota", "Enviar mensagem", "Atribuir Time", "Atribuir Agente", 
+                "Escolher Agente com Roleta", "Guardar Valor", "Integração API"
+            ];
 
             const commonInputClass = 'w-full p-2 bg-input-bg-light dark:bg-input-bg border border-border-light dark:border-border rounded-md';
 
@@ -953,43 +1087,62 @@
                 React.createElement('div', { className: 'space-y-4 text-sm' },
                     React.createElement('div', null,
                         React.createElement('label', { className: 'font-semibold block mb-1' }, 'Nome da Regra'),
-                        React.createElement('input', { type: 'text', placeholder: 'Ex: Transferir para vendas', value: localRule.name, onChange: e => updateField('name', e.target.value), className: commonInputClass })
+                        React.createElement('input', { type: 'text', placeholder: 'Ex: Notificar time de vendas', value: localRule.name, onChange: e => updateField('name', e.target.value), className: commonInputClass })
                     ),
                     React.createElement('div', null,
                         React.createElement('label', { className: 'font-semibold block mb-1' }, 'Descrição'),
                         React.createElement('input', { type: 'text', placeholder: 'Descreva o objetivo desta regra...', value: localRule.description, onChange: e => updateField('description', e.target.value), className: commonInputClass })
                     ),
-                    React.createElement('div', null,
-                        React.createElement('label', { className: 'font-semibold block mb-1' }, 'Evento'),
-                        React.createElement('select', { value: localRule.event, onChange: e => updateField('event', e.target.value), className: commonInputClass },
-                           eventOptions.map(opt => React.createElement('option', { key: opt, value: opt }, opt)))
-                    ),
                     
                     React.createElement('div', null,
                         React.createElement('div', {className: 'flex justify-between items-center mb-2'},
-                            React.createElement('label', { className: 'font-semibold' }, 'Condições'),
-                            React.createElement('button', {onClick: addCondition, className: 'flex items-center gap-1 text-primary text-xs font-semibold'}, React.createElement(Icon, {name:'plus', className: 'h-3 w-3'}), 'Adicionar')
-                        ),
-                        localRule.conditions.length === 0 
-                            ? React.createElement('p', {className: 'text-xs text-center text-secondary-text-light dark:text-secondary-text py-2'}, 'Nenhuma condição. A ação será sempre executada.')
-                            : React.createElement('div', {className: 'space-y-2'}, localRule.conditions.map((cond, index) => React.createElement('div', { key: cond.id, className: 'flex gap-2 items-center'},
-                                React.createElement('select', { value: cond.field, onChange: e => updateCondition(index, 'field', e.target.value), className: `flex-1 ${commonInputClass}` }, conditionFieldOptions.map(opt => React.createElement('option',{key:opt}, opt))),
-                                React.createElement('select', { value: cond.operator, onChange: e => updateCondition(index, 'operator', e.target.value), className: `flex-1 ${commonInputClass}` }, conditionOpOptions.map(opt => React.createElement('option',{key:opt}, opt))),
-                                React.createElement('input', { type: 'text', placeholder: 'Valor', value: cond.value, onChange: e => updateCondition(index, 'value', e.target.value), className: `flex-1 ${commonInputClass}` }),
-                                React.createElement('button', { onClick: () => removeCondition(index) }, React.createElement(Icon, { name: 'trash', className: 'h-4 w-4 text-secondary-text-light dark:text-secondary-text hover:text-danger' }))
-                            )))
-                    ),
-
-                    React.createElement('div', null,
-                        React.createElement('div', {className: 'flex justify-between items-center mb-2'},
                             React.createElement('label', { className: 'font-semibold' }, 'Ações'),
-                            React.createElement('button', {onClick: addAction, className: 'flex items-center gap-1 text-primary text-xs font-semibold'}, React.createElement(Icon, {name:'plus', className: 'h-3 w-3'}), 'Adicionar')
+                            React.createElement('button', {onClick: addAction, className: 'flex items-center gap-1 text-primary text-xs font-semibold'}, React.createElement(Icon, {name:'plus', className: 'h-3 w-3'}), 'Adicionar Ação')
                         ),
-                        React.createElement('div', {className: 'space-y-2'}, localRule.actions.map((action, index) => React.createElement('div', { key: action.id, className: 'flex gap-2 items-center'},
-                            React.createElement('select', { value: action.type, onChange: e => updateAction(index, 'type', e.target.value), className: `flex-1 ${commonInputClass}` }, actionTypeOptions.map(opt => React.createElement('option',{key:opt}, opt))),
-                            React.createElement('input', { type: 'text', placeholder: 'Valor da ação', value: action.value, onChange: e => updateAction(index, 'value', e.target.value), className: `flex-1 ${commonInputClass}` }),
-                            React.createElement('button', { onClick: () => removeAction(index) }, React.createElement(Icon, { name: 'trash', className: 'h-4 w-4 text-secondary-text-light dark:text-secondary-text hover:text-danger' }))
-                        )))
+                        React.createElement('div', {className: 'space-y-3'}, localRule.actions.map((action, index) => {
+                             const handleApiValueChange = (subField, subValue) => {
+                                const newActions = JSON.parse(JSON.stringify(localRule.actions));
+                                if(typeof newActions[index].value !== 'object') newActions[index].value = {};
+                                newActions[index].value[subField] = subValue;
+                                setLocalRule(prev => ({ ...prev, actions: newActions }));
+                            };
+
+                            return React.createElement('div', { key: action.id, className: 'p-3 bg-base-light dark:bg-base rounded-lg border border-border-light dark:border-border'},
+                                React.createElement('div', { className: 'flex gap-2 items-center' },
+                                    React.createElement('select', { 
+                                        value: action.type, 
+                                        onChange: e => {
+                                            const newType = e.target.value;
+                                            const newValue = newType === 'Integração API' ? { url: '', header: '', body: '', authorization: '' } : '';
+                                            
+                                            const newActions = [...localRule.actions];
+                                            newActions[index] = {...newActions[index], type: newType, value: newValue };
+                                            setLocalRule(prev => ({...prev, actions: newActions}));
+                                        }, 
+                                        className: `flex-1 ${commonInputClass}` 
+                                    }, actionTypeOptions.map(opt => React.createElement('option',{key:opt}, opt))),
+                                    React.createElement('button', { onClick: () => removeAction(index) }, React.createElement(Icon, { name: 'trash', className: 'h-4 w-4 text-secondary-text-light dark:text-secondary-text hover:text-danger' }))
+                                ),
+                                action.type === 'Integração API' 
+                                    ? React.createElement('div', {className:'mt-3 space-y-2'},
+                                        React.createElement('input', { type: 'text', placeholder: "URL", value: action.value.url || '', onChange: e => handleApiValueChange('url', e.target.value), className: commonInputClass }),
+                                        React.createElement('textarea', { placeholder: "Header (JSON)", value: action.value.header || '', onChange: e => handleApiValueChange('header', e.target.value), className: `${commonInputClass} h-20` }),
+                                        React.createElement('textarea', { placeholder: "Body (JSON)", value: action.value.body || '', onChange: e => handleApiValueChange('body', e.target.value), className: `${commonInputClass} h-20` }),
+                                        React.createElement('input', { type: 'text', placeholder: "Authorization", value: action.value.authorization || '', onChange: e => handleApiValueChange('authorization', e.target.value), className: commonInputClass }),
+                                    )
+                                    : React.createElement('input', { 
+                                        type: 'text', 
+                                        placeholder: 'Valor da ação', 
+                                        value: typeof action.value === 'object' ? '' : action.value, 
+                                        onChange: e => {
+                                            const newActions = [...localRule.actions];
+                                            newActions[index].value = e.target.value;
+                                            setLocalRule(prev => ({...prev, actions: newActions}));
+                                        }, 
+                                        className: `mt-2 ${commonInputClass}` 
+                                    })
+                            )
+                        }))
                     ),
 
                     React.createElement('div', {className: 'flex justify-end gap-3 pt-4 border-t border-border-light dark:border-border'},
@@ -1003,6 +1156,7 @@
         const KeywordsCard = ({ multiAgent }) => {
             const { updateMultiAgentConfig } = useAppStore();
             const [inputValue, setInputValue] = React.useState('');
+            const [editingKeyword, setEditingKeyword] = React.useState(null);
              
             const handleAddKeyword = (e) => {
                 if ((e.key === 'Enter' || e.key === ',') && inputValue.trim()) {
@@ -1018,7 +1172,16 @@
 
             const handleRemoveKeyword = (keywordToRemove) => {
                 const newList = multiAgent.keywords.list.filter(k => k !== keywordToRemove);
-                updateMultiAgentConfig(multiAgent.id, 'keywords', {...multiAgent.keywords, list: newList});
+                const newActions = {...multiAgent.keywords.actions};
+                delete newActions[keywordToRemove];
+                updateMultiAgentConfig(multiAgent.id, 'keywords', {...multiAgent.keywords, list: newList, actions: newActions});
+            };
+
+            const handleSaveKeywordAction = (keyword, actions) => {
+                 const newActions = {...multiAgent.keywords.actions, [keyword]: actions };
+                 updateMultiAgentConfig(multiAgent.id, 'keywords', {...multiAgent.keywords, actions: newActions });
+                 setEditingKeyword(null);
+                 toast.success(`Ações para "${keyword}" salvas!`);
             };
 
             const toggleIgnore = () => {
@@ -1026,10 +1189,20 @@
             };
 
             return React.createElement(ConfigSection, { title: "Palavras-chave", description: "Dispare ações baseadas em palavras específicas na conversa." },
+                editingKeyword && React.createElement(KeywordActionModal, { 
+                    keyword: editingKeyword, 
+                    actions: multiAgent.keywords.actions[editingKeyword] || [],
+                    onClose: () => setEditingKeyword(null), 
+                    onSave: (actions) => handleSaveKeywordAction(editingKeyword, actions)
+                }),
                 React.createElement('div', { className: 'flex flex-wrap items-center gap-2 p-2 bg-input-bg-light dark:bg-input-bg border border-border-light dark:border-border rounded-lg' },
-                    multiAgent.keywords.list.map(kw => React.createElement('span', { key: kw, className: 'flex items-center gap-1.5 bg-primary/20 text-primary text-sm font-medium px-2 py-1 rounded cursor-pointer hover:bg-primary/30' },
+                    multiAgent.keywords.list.map(kw => React.createElement('span', { 
+                        key: kw, 
+                        onClick: () => setEditingKeyword(kw),
+                        className: 'flex items-center gap-1.5 bg-primary/20 text-primary text-sm font-medium px-2 py-1 rounded cursor-pointer hover:bg-primary/30' 
+                    },
                         kw,
-                        React.createElement('button', { onClick: () => handleRemoveKeyword(kw) }, React.createElement(Icon, { name: 'x', className: 'h-3.5 w-3.5' }))
+                        React.createElement('button', { onClick: (e) => {e.stopPropagation(); handleRemoveKeyword(kw)} }, React.createElement(Icon, { name: 'x', className: 'h-3.5 w-3.5' }))
                     )),
                     React.createElement('input', {
                         value: inputValue,
@@ -1047,6 +1220,41 @@
                         className: 'w-4 h-4 rounded bg-base-light dark:bg-base border-border-light dark:border-border text-primary focus:ring-primary'
                     }),
                     'Ignorar palavras-chave'
+                )
+            );
+        };
+
+        const KeywordActionModal = ({ keyword, actions, onClose, onSave }) => {
+            const [localActions, setLocalActions] = React.useState(actions);
+
+            const addAction = () => setLocalActions(prev => [...prev, { id: `act_${Date.now()}`, type: 'Enviar Mensagem', value: ''}]);
+            const updateAction = (index, key, value) => {
+                const newActions = [...localActions];
+                newActions[index][key] = value;
+                setLocalActions(newActions);
+            };
+            const removeAction = (index) => setLocalActions(localActions.filter((_, i) => i !== index));
+            
+            const actionTypeOptions = ["Enviar Mensagem", "Adicionar Etiqueta", "Encerrar Chat", "Enviar Imagem"];
+            const commonInputClass = 'w-full p-2 bg-input-bg-light dark:bg-input-bg border border-border-light dark:border-border rounded-md';
+
+            return React.createElement(Modal, { title: `Ações para "${keyword}"`, onClose },
+                 React.createElement('div', { className: 'space-y-4 text-sm' },
+                     React.createElement('div', {className: 'flex justify-between items-center mb-2'},
+                        React.createElement('label', { className: 'font-semibold' }, 'Ações a serem executadas'),
+                        React.createElement('button', {onClick: addAction, className: 'flex items-center gap-1 text-primary text-xs font-semibold'}, React.createElement(Icon, {name:'plus', className: 'h-3 w-3'}), 'Adicionar')
+                    ),
+                    localActions.length === 0 
+                        ? React.createElement('p', {className: 'text-xs text-center text-secondary-text-light dark:text-secondary-text py-2'}, 'Nenhuma ação configurada.')
+                        : React.createElement('div', {className: 'space-y-2'}, localActions.map((action, index) => React.createElement('div', { key: action.id, className: 'flex gap-2 items-center'},
+                            React.createElement('select', { value: action.type, onChange: e => updateAction(index, 'type', e.target.value), className: `flex-1 ${commonInputClass}` }, actionTypeOptions.map(opt => React.createElement('option',{key:opt}, opt))),
+                            React.createElement('input', { type: 'text', placeholder: 'Valor da ação (ex: texto ou URL da imagem)', value: action.value, onChange: e => updateAction(index, 'value', e.target.value), className: `flex-1 ${commonInputClass}` }),
+                            React.createElement('button', { onClick: () => removeAction(index) }, React.createElement(Icon, { name: 'trash', className: 'h-4 w-4 text-secondary-text-light dark:text-secondary-text hover:text-danger' }))
+                        ))),
+                    React.createElement('div', {className: 'flex justify-end gap-3 pt-4 border-t border-border-light dark:border-border'},
+                        React.createElement('button', { onClick: onClose, className: 'px-4 py-2 rounded-lg bg-base-light dark:bg-base hover:bg-border-light dark:hover:bg-border'}, 'Cancelar'),
+                        React.createElement('button', { onClick: () => onSave(localActions), className: 'px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white'}, 'Salvar Ações')
+                    )
                 )
             );
         };
@@ -1100,6 +1308,8 @@
             const [input, setInput] = React.useState('');
             const [isTyping, setIsTyping] = React.useState(false);
             const [isLogOpen, setIsLogOpen] = React.useState(false);
+            const [isListening, setIsListening] = React.useState(false);
+            const imageInputRef = React.useRef(null);
 
             const { chat: chatHistory, logs } = getOrCreatePreviewState(multiAgent.id);
             const chatEndRef = React.useRef(null);
@@ -1108,62 +1318,150 @@
                 chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
             }, [chatHistory]);
 
-            const handleSend = async () => {
-                if (input.trim() && !isTyping) {
-                    const userMessage = { from: 'user', text: input };
-                    addChatMessage(multiAgent.id, userMessage);
-                    const currentHistory = [...chatHistory, userMessage];
-                    setInput('');
-                    setIsTyping(true);
-                    addLogMessage(multiAgent.id, { title: 'Mensagem do Usuário', data: userMessage });
-
-                    try {
-                        const knowledgeBaseText = multiAgent.knowledgeBase
-                            .map(item => {
-                                if (item.type === 'text') return `Título: ${item.title}\nConteúdo: ${item.content}`;
-                                if (item.type === 'faq') return `Pergunta: ${item.question}\nResposta: ${item.answer}`;
-                                if (item.type === 'url') return `Fonte (${item.url}):\n${item.content}`;
-                                return '';
-                            })
-                            .join('\n\n---\n\n');
-
-                        const fullPrompt = `${multiAgent.prompt || "Responda de forma útil."}\n\nUse a seguinte base de conhecimento para responder:\n${knowledgeBaseText}`;
-
-                        const systemInstruction = { parts: [{ text: fullPrompt }] };
-                        const contents = currentHistory.map(msg => ({
-                            role: msg.from === 'user' ? 'user' : 'model',
-                            parts: [{ text: msg.text }]
-                        }));
-                        const payload = { contents, systemInstruction };
-
-                        addLogMessage(multiAgent.id, { title: 'Enviando para API Gemini', data: payload });
-
-                        const apiKey = "AIzaSyA0LecQ2UW0nZvLTlnp-Utp4NHxVeIfvX8";
-                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-                        const response = await fetch(apiUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-
-                        if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
-
-                        const result = await response.json();
-                        addLogMessage(multiAgent.id, { title: 'Resposta Recebida da API', data: result });
-                        const botResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || "Desculpe, não consegui processar sua solicitação.";
-                        addChatMessage(multiAgent.id, { from: 'bot', text: botResponse });
-
-                    } catch (error) {
-                        console.error("Gemini API call failed:", error);
-                        const errorMsg = "Ocorreu um erro ao conectar com a IA. Tente novamente.";
-                        addChatMessage(multiAgent.id, { from: 'bot', text: errorMsg });
-                        addLogMessage(multiAgent.id, { title: 'Erro na API', data: { error: error.message }, status: 'error' });
-                        toast.error("Erro na API do Gemini.");
-                    } finally {
-                        setIsTyping(false);
-                    }
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        addChatMessage(multiAgent.id, { from: 'user', text: '', image: reader.result });
+                    };
+                    reader.readAsDataURL(file);
                 }
             };
+            
+            const handleMicClick = () => {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    toast.error('Reconhecimento de voz não é suportado neste navegador.');
+                    return;
+                }
+                
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'pt-BR';
+                recognition.interimResults = false;
+
+                recognition.onstart = () => setIsListening(true);
+                recognition.onend = () => setIsListening(false);
+                recognition.onerror = (event) => {
+                    toast.error(`Erro no reconhecimento: ${event.error}`);
+                    setIsListening(false);
+                };
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    setInput(prev => prev ? `${prev} ${transcript}`: transcript);
+                };
+
+                recognition.start();
+            };
+
+            const handleSend = async () => {
+                const lastUserMessage = chatHistory.length > 0 ? chatHistory[chatHistory.length - 1] : null;
+                const textToSend = input.trim();
+                 // Check if the last message was a user message with an image and no text
+                const imageToSend = lastUserMessage?.from === 'user' && lastUserMessage.image && lastUserMessage.text === '' ? lastUserMessage.image : null;
+                
+                if ((!textToSend && !imageToSend) || isTyping) return;
+
+                // If we are sending only text, create a new message. 
+                // If we are sending text for an image just sent, update that message.
+                if (imageToSend && textToSend) {
+                    // This logic is tricky. For Gemini, we send image and text in the same "turn".
+                    // Let's create a new message that has both. We'll remove the old image-only message.
+                    const newHistory = chatHistory.slice(0, -1); // remove image-only message
+                    const userMessage = { from: 'user', text: textToSend, image: imageToSend };
+                    addChatMessage(multiAgent.id, userMessage); // This will re-add it
+                    const currentHistory = [...newHistory, userMessage];
+                    
+                    // The store update is async, so we'll work with `currentHistory`
+                    await sendToGemini(currentHistory, userMessage);
+
+                } else {
+                    const userMessage = { from: 'user', text: textToSend, image: null };
+                    addChatMessage(multiAgent.id, userMessage);
+                    const currentHistory = [...chatHistory, userMessage];
+                    await sendToGemini(currentHistory, userMessage);
+                }
+            };
+            
+            const sendToGemini = async (currentHistory, userMessage) => {
+                 setInput('');
+                 setIsTyping(true);
+                 addLogMessage(multiAgent.id, { title: 'Mensagem do Usuário', data: userMessage });
+
+                 try {
+                     const knowledgeBaseText = multiAgent.knowledgeBase
+                         .map(item => {
+                             if (item.type === 'text') return `Título: ${item.title}\nConteúdo: ${item.content}`;
+                             if (item.type === 'faq') return `Pergunta: ${item.question}\nResposta: ${item.answer}`;
+                             if (item.type === 'url') return `Fonte (${item.url}):\n${item.content}`;
+                             if (item.type === 'files') return `Arquivo (${item.name}):\n${item.content}`;
+                             if (item.type === 'produtos') return `Produto: ${item.title}\nDescrição: ${item.description}\nDetalhes: ${item.content}`;
+                             return '';
+                         })
+                         .join('\n\n---\n\n');
+
+                     const fullPrompt = `${multiAgent.prompt || "Responda de forma útil."}\n\nUse a seguinte base de conhecimento para responder:\n${knowledgeBaseText}`;
+
+                     const systemInstruction = { parts: [{ text: fullPrompt }] };
+
+                     const contents = currentHistory.map(msg => {
+                         const parts = [];
+                         if (msg.text) parts.push({ text: msg.text });
+                         if (msg.image) {
+                             parts.push({
+                                 inlineData: {
+                                     mimeType: msg.image.match(/:(.*?);/)[1],
+                                     data: msg.image.split(',')[1]
+                                 }
+                             });
+                         }
+                         return { role: msg.from === 'user' ? 'user' : 'model', parts };
+                     });
+                    
+                     const payload = { contents, systemInstruction };
+
+                     addLogMessage(multiAgent.id, { title: 'Enviando para API Gemini', data: payload });
+
+                     const apiKey = "AIzaSyA0LecQ2UW0nZvLTlnp-Utp4NHxVeIfvX8";
+                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                     const response = await fetch(apiUrl, {
+                         method: 'POST',
+                         headers: { 'Content-Type': 'application/json' },
+                         body: JSON.stringify(payload)
+                     });
+
+                     if (!response.ok) {
+                        const errorBody = await response.json();
+                        throw new Error(`API Error: ${response.statusText} - ${errorBody?.error?.message}`);
+                     }
+
+                     const result = await response.json();
+                     addLogMessage(multiAgent.id, { title: 'Resposta Recebida da API', data: result });
+                     
+                     if (!result.candidates || result.candidates.length === 0 || !result.candidates[0].content) {
+                        const finishReason = result.candidates?.[0]?.finishReason;
+                        const safetyFeedback = result.promptFeedback?.safetyRatings;
+                        let errorMessage = "A IA não retornou uma resposta.";
+                        if (finishReason === "SAFETY") {
+                           errorMessage = "A resposta foi bloqueada por motivos de segurança.";
+                           console.warn("Safety ratings:", safetyFeedback);
+                        }
+                        throw new Error(errorMessage);
+                     }
+                     
+                     const botResponse = result.candidates[0].content.parts[0].text;
+                     addChatMessage(multiAgent.id, { from: 'bot', text: botResponse });
+
+                 } catch (error) {
+                     console.error("Gemini API call failed:", error);
+                     const errorMsg = "Ocorreu um erro ao conectar com a IA. Tente novamente.";
+                     addChatMessage(multiAgent.id, { from: 'bot', text: errorMsg });
+                     addLogMessage(multiAgent.id, { title: 'Erro na API', data: { error: error.message }, status: 'error' });
+                     toast.error("Erro na API do Gemini.");
+                 } finally {
+                     setIsTyping(false);
+                 }
+            }
 
             return React.createElement('div', { className: 'flex h-full' },
                 React.createElement('div', { className: 'flex flex-col flex-1 h-full bg-base-light dark:bg-base rounded-b-2xl' },
@@ -1187,8 +1485,9 @@
                                 type: 'text', placeholder: 'Digite sua mensagem...', value: input, onChange: e => setInput(e.target.value),
                                 onKeyDown: e => e.key === 'Enter' && handleSend(), className: 'flex-1 bg-transparent py-2.5 px-2 text-sm outline-none'
                             }),
-                            React.createElement('button', { className: 'p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-base-light dark:hover:bg-base' }, React.createElement(Icon, { name: 'image', className: 'h-5 w-5' })),
-                            React.createElement('button', { className: 'p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-base-light dark:hover:bg-base' }, React.createElement(Icon, { name: 'mic', className: 'h-5 w-5' })),
+                            React.createElement('input', { type:'file', accept:'image/*', ref: imageInputRef, onChange: handleImageUpload, className: 'hidden' }),
+                            React.createElement('button', { onClick: () => imageInputRef.current.click(), className: 'p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-base-light dark:hover:bg-base' }, React.createElement(Icon, { name: 'image', className: 'h-5 w-5' })),
+                            React.createElement('button', { onClick: handleMicClick, className: `p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-base-light dark:hover:bg-base ${isListening ? 'text-danger' : ''}` }, React.createElement(Icon, { name: 'mic', className: `h-5 w-5 ${isListening ? 'animate-pulse' : ''}` })),
                             React.createElement('button', { onClick: handleSend, disabled: isTyping, className: 'p-2 rounded-full text-white bg-primary hover:bg-primary-hover disabled:bg-primary/50' }, React.createElement(Icon, { name: 'send', className: 'h-5 w-5' }))
                          )
                     )
@@ -1202,7 +1501,7 @@
             
             if(!isOpen) return null;
 
-            return React.createElement('div', { className: 'w-[400px] flex flex-col bg-card-light dark:bg-card border-l border-border-light dark:border-border rounded-r-2xl h-full fade-in' },
+            return React.createElement('div', { className: 'w-full sm:w-[400px] flex-col bg-card-light dark:bg-card border-l border-border-light dark:border-border rounded-r-2xl h-full fade-in hidden lg:flex' },
                 React.createElement('div', { className: 'p-4 border-b border-border-light dark:border-border flex items-center justify-between' },
                      React.createElement('h4', {className: 'font-semibold text-primary-text-light dark:text-primary-text flex items-center gap-2'}, React.createElement(Icon, {name: 'terminal', className:'h-4 w-4'}), 'Logs de Execução'),
                      React.createElement('button', {onClick: onClose}, React.createElement(Icon, {name:'x', className:'h-4 w-4'}))
@@ -1227,7 +1526,8 @@
             return React.createElement('div', { className: `flex gap-3 my-2 ${isUser ? 'justify-end' : 'justify-start'}` },
                 !isUser && React.createElement('div', { className: 'w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0' }, React.createElement(Icon, { name: 'bot', className: 'h-5 w-5 text-white'})),
                 React.createElement('div', { className: `p-3 rounded-2xl max-w-xs md:max-w-md shadow-md ${isUser ? 'bg-primary text-white rounded-br-none' : 'bg-card-light dark:bg-card text-primary-text-light dark:text-primary-text rounded-bl-none'}` },
-                    React.createElement('p', { className: 'text-sm whitespace-pre-wrap' }, msg.text)
+                    msg.image && React.createElement('img', {src: msg.image, className:'rounded-lg mb-2'}),
+                    msg.text && React.createElement('p', { className: 'text-sm whitespace-pre-wrap' }, msg.text)
                 )
             );
         };
@@ -1245,6 +1545,8 @@
 
         const Footer = () => {
              const { multiAgents, setActiveTab } = useAppStore();
+             const inputRef = React.useRef(null);
+
              const handleExport = () => {
                 const dataStr = JSON.stringify(multiAgents, null, 2);
                 const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
@@ -1254,15 +1556,35 @@
                 linkElement.click();
                 toast.success("Configuração exportada como JSON!");
              };
+
+             const handleImportClick = () => {
+                inputRef.current.click();
+             }
+
+             // In a real app, you'd update the zustand store here.
+             const handleFileImport = (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                       toast.success("Arquivo importado! (Simulação)");
+                       console.log(JSON.parse(e.target.result));
+                    };
+                    reader.readAsText(file);
+                }
+             };
+
             return React.createElement('footer', { className: 'h-16 flex-shrink-0 bg-card-light dark:bg-card border-t border-border-light dark:border-border flex items-center justify-between px-6' },
-                React.createElement('div', { className: 'flex items-center gap-2 text-sm text-secondary-text-light dark:text-secondary-text' },
+                React.createElement('div', { className: 'hidden sm:flex items-center gap-2 text-sm text-secondary-text-light dark:text-secondary-text' },
                     React.createElement(Icon, { name: 'checkCircle', className: 'h-4 w-4 text-accent'}),
-                    'Alterações salvas automaticamente'
+                    'Alterações salvas'
                 ),
-                React.createElement('div', { className: 'flex items-center gap-3' },
-                    React.createElement('button', { className: 'footer-btn flex items-center' }, React.createElement(Icon, { name: 'login', className: 'h-4 w-4 mr-2'}), 'Importar'),
-                    React.createElement('button', { onClick: handleExport, className: 'footer-btn flex items-center' }, React.createElement(Icon, { name: 'fileJson', className: 'h-4 w-4 mr-2'}), 'Exportar'),
-                    React.createElement('button', { onClick: () => setActiveTab('preview'), className: 'footer-btn bg-primary text-white hover:bg-primary-hover flex items-center' }, React.createElement(Icon, { name: 'testTube', className: 'h-4 w-4 mr-2'}), 'Testar Agente')
+                React.createElement('div', { className: 'flex items-center gap-3 w-full sm:w-auto' },
+                    React.createElement('input', {type:'file', ref:inputRef, onChange:handleFileImport, className:'hidden'}),
+                    React.createElement('button', { onClick: handleImportClick, className: 'footer-btn' }, React.createElement(Icon, { name: 'login', className: 'h-4 w-4 sm:mr-2'}), React.createElement('span', {className:'hidden sm:inline'}, 'Importar')),
+                    React.createElement('button', { onClick: handleExport, className: 'footer-btn' }, React.createElement(Icon, { name: 'fileJson', className: 'h-4 w-4 sm:mr-2'}), React.createElement('span', {className:'hidden sm:inline'},'Exportar')),
+                    React.createElement('button', { onClick: () => toast.success("Configurações salvas!"), className: 'footer-btn' }, React.createElement(Icon, { name: 'save', className: 'h-4 w-4 sm:mr-2'}), React.createElement('span', {className:'hidden sm:inline'}, 'Salvar')),
+                    React.createElement('button', { onClick: () => setActiveTab('preview'), className: 'footer-btn bg-primary text-white hover:bg-primary-hover' }, React.createElement(Icon, { name: 'testTube', className: 'h-4 w-4 sm:mr-2'}), React.createElement('span', {className:'hidden sm:inline'},'Testar Agente'))
                 )
             );
         };
