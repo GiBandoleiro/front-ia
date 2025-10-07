@@ -353,7 +353,7 @@
                     document.documentElement.classList.remove('dark');
                  }
             }, []);
-            return React.createElement('div', { className: 'flex flex-col lg:flex-row h-screen w-full bg-base-light dark:bg-base font-sans overflow-hidden' },
+            return React.createElement('div', { className: 'flex flex-col lg:flex-row min-h-screen lg:h-screen w-full bg-base-light dark:bg-base font-sans lg:overflow-hidden' },
                 React.createElement(Toaster, { richColors: true, theme: theme, position: "bottom-right" }),
                 React.createElement(Sidebar),
                 React.createElement('div', { className: 'flex-1 flex flex-col min-w-0' }, // Added min-w-0 for flexbox shrink
