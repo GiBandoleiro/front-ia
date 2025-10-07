@@ -335,7 +335,7 @@
                 image: ImageIcon, mic: Mic, send: Send, brain: BrainCircuit, workflow: Workflow, copy: Copy,
                 check: Check, checkCircle: CheckCircle, fileUp: FileUp, more: MoreVertical, edit: Edit, copyIcon: CopyIcon,
                 arrowRight: ArrowRight, circle: Circle, package: Package, messageCircle: MessageCircleIcon, code: Code,
-                power: Power, powerOff: Sparkles, checklist: ListTodo, star: Star, userPlus: UserPlus,
+                power: Power, powerOff: PowerOff, sparkles: Sparkles, checklist: ListTodo, star: Star, userPlus: UserPlus,
                 tags: Tags, sliders: SlidersHorizontal, login: LogIn, logout: LogOut, download: Download, config: Sliders, 
                 eye: Eye, fileJson: FileJson, testTube: TestTube2, alert: AlertTriangle, book: Book, faq: FileQuestion,
                 terminal: Terminal, chevronsRight: ChevronsRight, loader: Loader, menu: Menu, save: Save
@@ -353,10 +353,10 @@
                     document.documentElement.classList.remove('dark');
                  }
             }, []);
-            return React.createElement('div', { className: 'flex flex-col lg:flex-row h-screen w-screen bg-base-light dark:bg-base font-sans overflow-hidden' },
+            return React.createElement('div', { className: 'flex flex-col lg:flex-row h-screen w-full bg-base-light dark:bg-base font-sans overflow-hidden' },
                 React.createElement(Toaster, { richColors: true, theme: theme, position: "bottom-right" }),
                 React.createElement(Sidebar),
-                React.createElement('div', { className: 'flex flex-1 flex-col' },
+                React.createElement('div', { className: 'flex-1 flex flex-col min-w-0' }, // Added min-w-0 for flexbox shrink
                     React.createElement(Header, { toggleTheme: toggleTheme, theme: theme }),
                     React.createElement(MainContent)
                 )
@@ -386,7 +386,7 @@
                 ),
                 React.createElement('div', { className: 'flex-1 flex flex-col bg-card-light dark:bg-card rounded-2xl min-h-0' },
                     React.createElement(TabSwitcher, { activeTab, setActiveTab }),
-                    React.createElement('div', { className: 'flex-1 lg:overflow-y-auto' },
+                    React.createElement('div', { className: 'flex-1 overflow-y-auto' },
                        activeTab === 'config' 
                            ? React.createElement('div', {className:'p-4 sm:p-6'}, 
                                 React.createElement(ConfigPanel, { key: activeAgentId, agent: activeAgent, multiAgent: activeMultiAgent }),
