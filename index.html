@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- PDF.js -->
+    <!-- PDF.js for text extraction (kept for non-base64 file types if needed in future) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;</script>
 
@@ -149,15 +149,13 @@
 
         // --- ZUSTAND STORE SETUP ---
         const initialAgentState = {
-            id: `sub_${Date.now()}`,
             name: "Novo Agente",
             type: 'sub_agent',
             prompt: "",
             specialty: "",
         };
 
-        const initialMultiAgentState = (id) => ({
-            id: id,
+        const initialMultiAgentState = () => ({
             name: "Multi-Agente Padrão",
             type: 'multi_agent',
             prompt: "Você é um multi-agente avançado. Sua função é analisar a conversa do usuário e direcioná-la para o sub-agente mais apropriado.",
@@ -175,12 +173,15 @@
             keywords: { ignore: false, list: ['vendas', 'suporte', 'preço', 'ajuda'], actions: {} },
             channels: ['WhatsApp', 'WebChat'],
         });
+        
+        const firstAgentId = `multi_${Date.now()}`;
+        const firstAgent = { ...initialMultiAgentState(), id: firstAgentId };
 
         const useAppStore = create(
             persist(
                 (set, get) => ({
-                    multiAgents: [initialMultiAgentState(`multi_${Date.now()}`)],
-                    activeAgentId: `multi_${Date.now()}`,
+                    multiAgents: [firstAgent],
+                    activeAgentId: firstAgentId,
                     activeTab: 'config',
                     theme: 'dark',
                     previewState: {},
@@ -239,8 +240,9 @@
                     setActiveAgentId: (id) => set({ activeAgentId: id }),
                     addMultiAgent: () => set(state => {
                         const newId = `multi_${Date.now()}`;
+                        const newAgent = { ...initialMultiAgentState(), id: newId };
                         return { 
-                            multiAgents: [...state.multiAgents, initialMultiAgentState(newId)],
+                            multiAgents: [...state.multiAgents, newAgent],
                             activeAgentId: newId 
                         };
                     }),
@@ -284,7 +286,8 @@
                         }
                         if (newMultiAgents.length === 0) {
                             const newId = `multi_${Date.now()}`;
-                            newMultiAgents.push(initialMultiAgentState(newId));
+                            const newAgent = { ...initialMultiAgentState(), id: newId };
+                            newMultiAgents.push(newAgent);
                             newActiveId = newId;
                         }
                         return { multiAgents: newMultiAgents, activeAgentId: newActiveId };
@@ -315,7 +318,18 @@
                         multiAgents: state.multiAgents.map(ma => ma.id === multiAgentId ? { ...ma, [key]: value } : ma)
                     })),
                 }),
-                { name: 'chatbot-builder-storage', storage: createJSONStorage(() => localStorage) }
+                { 
+                    name: 'chatbot-builder-storage', 
+                    storage: createJSONStorage(() => localStorage),
+                    partialize: (state) => ({
+                        ...state,
+                        multiAgents: state.multiAgents.map(agent => ({
+                            ...agent,
+                            // Remove o campo 'content' da base de conhecimento antes de persistir para evitar exceder a cota do localStorage
+                            knowledgeBase: agent.knowledgeBase.map(({ content, ...item }) => item),
+                        })),
+                    }),
+                }
             )
         );
         
@@ -679,22 +693,9 @@
                         reader.onerror = (err) => reject(err);
                         reader.readAsText(file);
                     } else if (file.type === 'application/pdf') {
-                        reader.onload = async (event) => {
-                            try {
-                                const pdf = await pdfjsLib.getDocument(event.target.result).promise;
-                                let fullText = '';
-                                for (let i = 1; i <= pdf.numPages; i++) {
-                                    const page = await pdf.getPage(i);
-                                    const textContent = await page.getTextContent();
-                                    fullText += textContent.items.map(item => item.str).join(' ');
-                                }
-                                resolve(fullText);
-                            } catch (pdfError) {
-                                reject(pdfError);
-                            }
-                        };
+                        reader.onload = (event) => resolve(event.target.result); // Resolve with base64 data URL
                         reader.onerror = (err) => reject(err);
-                        reader.readAsArrayBuffer(file);
+                        reader.readAsDataURL(file); // Read as data URL to get base64
                     } else if (file.type.startsWith('image/')) {
                         reader.onload = (event) => resolve(event.target.result); // base64 string
                         reader.onerror = (err) => reject(err);
@@ -761,7 +762,7 @@
                 const fileToast = toast.loading(`Lendo ${file.name}...`);
                 try {
                    const content = await readFileContent(file);
-                   onAdd('files', { name: file.name, content: content });
+                   onAdd('files', { name: file.name, content: content, fileType: file.type });
                    toast.success(`${file.name} lido com sucesso!`, { id: fileToast });
                 } catch (error) {
                     toast.error(`Erro ao processar o arquivo: ${error.message}`, { id: fileToast });
@@ -1136,7 +1137,7 @@
             const { updateMultiAgentConfig } = useAppStore();
             const [inputValue, setInputValue] = React.useState('');
             const [editingKeyword, setEditingKeyword] = React.useState(null);
-             
+            
             const handleAddKeyword = (e) => {
                 if ((e.key === 'Enter' || e.key === ',') && inputValue.trim()) {
                     e.preventDefault();
@@ -1373,7 +1374,9 @@
                             if (item.type === 'text') return `Título: ${item.title}\nConteúdo: ${item.content}`;
                             if (item.type === 'faq') return `Pergunta: ${item.question}\nResposta: ${item.answer}`;
                             if (item.type === 'url') return `Fonte (${item.url}):\n${item.content}`;
-                            if (item.type === 'files') return `Arquivo (${item.name}):\n${item.content}`;
+                            // For base64 files, especially PDFs, we cannot send the content directly as it's not text.
+                            // We will send a note that a file exists, which is a limitation of this text-based approach.
+                            if (item.type === 'files') return `O usuário tem acesso ao arquivo chamado: ${item.name}. Responda perguntas sobre ele se o usuário perguntar.`;
                             if (item.type === 'produtos') return `Produto: ${item.title}\nDescrição: ${item.description}\nDetalhes: ${item.content}`;
                             return '';
                         })
@@ -1401,7 +1404,7 @@
 
                     addLogMessage(multiAgent.id, { title: 'Enviando para API Gemini', data: payload });
 
-                    const apiKey = "AIzaSyA0LecQ2UW0nZvLTlnp-Utp4NHxVeIfvX8"; // Add your Gemini API Key here
+                    const apiKey = ""; // A chave da API é injetada automaticamente no ambiente de execução.
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
                     const response = await fetch(apiUrl, {
                         method: 'POST',
@@ -1433,10 +1436,10 @@
 
                 } catch (error) {
                     console.error("Gemini API call failed:", error);
-                    const errorMsg = "Ocorreu um erro ao conectar com a IA. Tente novamente.";
+                    const errorMsg = `Ocorreu um erro: ${error.message}. Por favor, verifique o console para mais detalhes.`;
                     addChatMessage(multiAgent.id, { from: 'bot', text: errorMsg });
                     addLogMessage(multiAgent.id, { title: 'Erro na API', data: { error: error.message }, status: 'error' });
-                    toast.error("Erro na API do Gemini.");
+                    toast.error(error.message || "Erro na API do Gemini.");
                 } finally {
                     setIsTyping(false);
                 }
@@ -1444,13 +1447,13 @@
 
             return React.createElement('div', { className: 'flex h-full' },
                 React.createElement('div', { className: 'flex flex-col flex-1 h-full bg-base-light dark:bg-base rounded-b-2xl' },
-                     React.createElement('div', { className: 'flex items-center justify-between p-4 border-b border-border-light dark:border-border flex-shrink-0' },
-                         React.createElement('h3', { className: 'font-semibold text-primary-text-light dark:text-primary-text' }, `Prévia: ${multiAgent.name}`),
-                         React.createElement('div', { className: 'flex items-center gap-2'},
-                            React.createElement('button', { onClick: () => setIsLogOpen(!isLogOpen), className: `p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-card-light dark:hover:bg-card ${isLogOpen ? 'bg-primary/10 dark:bg-primary/20 text-primary' : ''}`}, React.createElement(Icon, { name: 'terminal', className: 'h-4 w-4' })),
-                            React.createElement('button', { onClick: () => clearChat(multiAgent.id), className: 'p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-card-light dark:hover:bg-card hover:text-danger'}, React.createElement(Icon, { name: 'trash', className: 'h-4 w-4' }))
-                         )
-                     ),
+                       React.createElement('div', { className: 'flex items-center justify-between p-4 border-b border-border-light dark:border-border flex-shrink-0' },
+                           React.createElement('h3', { className: 'font-semibold text-primary-text-light dark:text-primary-text' }, `Prévia: ${multiAgent.name}`),
+                           React.createElement('div', { className: 'flex items-center gap-2'},
+                                React.createElement('button', { onClick: () => setIsLogOpen(!isLogOpen), className: `p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-card-light dark:hover:bg-card ${isLogOpen ? 'bg-primary/10 dark:bg-primary/20 text-primary' : ''}`}, React.createElement(Icon, { name: 'terminal', className: 'h-4 w-4' })),
+                                React.createElement('button', { onClick: () => clearChat(multiAgent.id), className: 'p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-card-light dark:hover:bg-card hover:text-danger'}, React.createElement(Icon, { name: 'trash', className: 'h-4 w-4' }))
+                           )
+                       ),
                     React.createElement('div', { className: 'flex-1 p-4 overflow-y-auto' },
                         React.createElement('div', {className: 'space-y-6'},
                             chatHistory.map((msg, index) => React.createElement(ChatMessage, { key: index, msg: msg })),
@@ -1458,17 +1461,17 @@
                         ),
                         React.createElement('div', { ref: chatEndRef })
                     ),
-                     React.createElement('div', { className: 'p-4 border-t border-border-light dark:border-border flex-shrink-0' },
-                         React.createElement('div', { className: 'flex items-center gap-2 bg-input-bg-light dark:bg-input-bg border border-border-light dark:border-border rounded-lg px-2' },
-                             React.createElement('input', {
-                                 type: 'text', placeholder: 'Digite sua mensagem...', value: input, onChange: e => setInput(e.target.value),
-                                 onKeyDown: e => e.key === 'Enter' && handleSend(), className: 'flex-1 bg-transparent py-2.5 px-2 text-sm outline-none'
-                             }),
-                             React.createElement('input', { type:'file', accept:'image/*', ref: imageInputRef, onChange: handleImageUpload, className: 'hidden' }),
-                             React.createElement('button', { onClick: () => imageInputRef.current.click(), className: 'p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-base-light dark:hover:bg-base' }, React.createElement(Icon, { name: 'image', className: 'h-5 w-5' })),
-                             React.createElement('button', { onClick: handleMicClick, className: `p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-base-light dark:hover:bg-base ${isListening ? 'text-danger' : ''}` }, React.createElement(Icon, { name: 'mic', className: `h-5 w-5 ${isListening ? 'animate-pulse' : ''}` })),
-                             React.createElement('button', { onClick: handleSend, disabled: isTyping, className: 'p-2 rounded-full text-white bg-primary hover:bg-primary-hover disabled:bg-primary/50' }, React.createElement(Icon, { name: 'send', className: 'h-5 w-5' }))
-                         )
+                       React.createElement('div', { className: 'p-4 border-t border-border-light dark:border-border flex-shrink-0' },
+                           React.createElement('div', { className: 'flex items-center gap-2 bg-input-bg-light dark:bg-input-bg border border-border-light dark:border-border rounded-lg px-2' },
+                               React.createElement('input', {
+                                   type: 'text', placeholder: 'Digite sua mensagem...', value: input, onChange: e => setInput(e.target.value),
+                                   onKeyDown: e => e.key === 'Enter' && handleSend(), className: 'flex-1 bg-transparent py-2.5 px-2 text-sm outline-none'
+                               }),
+                               React.createElement('input', { type:'file', accept:'image/*', ref: imageInputRef, onChange: handleImageUpload, className: 'hidden' }),
+                               React.createElement('button', { onClick: () => imageInputRef.current.click(), className: 'p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-base-light dark:hover:bg-base' }, React.createElement(Icon, { name: 'image', className: 'h-5 w-5' })),
+                               React.createElement('button', { onClick: handleMicClick, className: `p-2 rounded-full text-secondary-text-light dark:text-secondary-text hover:bg-base-light dark:hover:bg-base ${isListening ? 'text-danger' : ''}` }, React.createElement(Icon, { name: 'mic', className: `h-5 w-5 ${isListening ? 'animate-pulse' : ''}` })),
+                               React.createElement('button', { onClick: handleSend, disabled: isTyping, className: 'p-2 rounded-full text-white bg-primary hover:bg-primary-hover disabled:bg-primary/50' }, React.createElement(Icon, { name: 'send', className: 'h-5 w-5' }))
+                           )
                     )
                 ),
                 React.createElement(ExecutionLogPanel, { logs, isOpen: isLogOpen, onClose: () => setIsLogOpen(false) })
@@ -1482,8 +1485,8 @@
 
             return React.createElement('div', { className: 'w-full sm:w-[400px] flex-col bg-card-light dark:bg-card border-l border-border-light dark:border-border rounded-r-2xl h-full fade-in hidden lg:flex' },
                 React.createElement('div', { className: 'p-4 border-b border-border-light dark:border-border flex items-center justify-between' },
-                     React.createElement('h4', {className: 'font-semibold text-primary-text-light dark:text-primary-text flex items-center gap-2'}, React.createElement(Icon, {name: 'terminal', className:'h-4 w-4'}), 'Logs de Execução'),
-                     React.createElement('button', {onClick: onClose}, React.createElement(Icon, {name:'x', className:'h-4 w-4'}))
+                       React.createElement('h4', {className: 'font-semibold text-primary-text-light dark:text-primary-text flex items-center gap-2'}, React.createElement(Icon, {name: 'terminal', className:'h-4 w-4'}), 'Logs de Execução'),
+                       React.createElement('button', {onClick: onClose}, React.createElement(Icon, {name:'x', className:'h-4 w-4'}))
                 ),
                 React.createElement('div', { className: 'flex-1 p-2 overflow-y-auto' },
                     logs.map(log => React.createElement('div', { key: log.id, className: 'mb-1 text-sm' },
@@ -1546,8 +1549,8 @@
                  if (file) {
                      const reader = new FileReader();
                      reader.onload = (e) => {
-                        toast.success("Arquivo importado! (Simulação)");
-                        console.log(JSON.parse(e.target.result));
+                         toast.success("Arquivo importado! (Simulação)");
+                         console.log(JSON.parse(e.target.result));
                      };
                      reader.readAsText(file);
                  }
